@@ -14,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 from concurrent.futures import ThreadPoolExecutor
 from verifier import verify_email
 
-app = app = FastAPI(title="Mumbo Leads — Email Verifier")
+app = FastAPI(title="Mumbo Leads — Email Verifier")
 templates = Jinja2Templates(directory="templates")
 
 executor = ThreadPoolExecutor(max_workers=10)
