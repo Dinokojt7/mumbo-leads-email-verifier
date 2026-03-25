@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Email Verifier — Mumbo Leads</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f0f11; color: #fff; min-height: 100vh; }
+
+  header { padding: 24px 40px; border-bottom: 1px solid #222; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header span { font-size: 13px; color: #666; }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed #333; border-radius: 12px; padding: 48px;
+    text-align: center; cursor: pointer; transition: border-color .2s;
+  }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: #3b82f6; }
+  .upload-zone p { color: #666; font-size: 14px; margin-top: 8px; }
+  .upload-zone .icon { font-size: 36px; }
+
+  /* Column select */
+  .config { display: none; margin-top: 24px; gap: 12px; align-items: flex-end; }
+  .config.visible { display: flex; }
+  .config label { font-size: 13px; color: #aaa; display: block; margin-bottom: 6px; }
+  .config select {
+    background: #1a1a1e; border: 1px solid #333; color: #fff;
+    padding: 10px 14px; border-radius: 8px; font-size: 14px; flex: 1;
+  }
+  .btn {
+    background: #3b82f6; color: #fff; border: none; padding: 10px 24px;
+    border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 600;
+    transition: background .2s;
+  }
+  .btn:hover { background: #2563eb; }
+  .btn:disabled { background: #333; cursor: not-allowed; }
+
+  /* Progress */
+  .progress-section { display: none; margin-top: 32px; }
+  .progress-section.visible { display: block; }
+  .progress-bar-wrap { background: #1a1a1e; border-radius: 999px; height: 6px; margin: 12px 0; }
+  .progress-bar { background: #3b82f6; height: 6px; border-radius: 999px; width: 0%; transition: width .3s; }
+  .progress-label { font-size: 13px; color: #666; }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 24px; }
+  .stat-card { background: #1a1a1e; border-radius: 10px; padding: 16px 20px; }
+  .stat-card .count { font-size: 28px; font-weight: 700; }
+  .stat-card .label { font-size: 12px; color: #666; margin-top: 2px; }
+  .stat-card.valid .count   { color: #22c55e; }
+  .stat-card.invalid .count { color: #ef4444; }
+  .stat-card.risky .count   { color: #f59e0b; }
+  .stat-card.unknown .count { color: #6b7280; }
+
+  /* Filters + export */
+  .toolbar { display: none; margin-top: 28px; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .toolbar.visible { display: flex; }
+  .filter-btn {
+    padding: 7px 16px; border-radius: 6px; border: 1px solid #333;
+    background: transparent; color: #aaa; font-size: 13px; cursor: pointer; transition: all .15s;
+  }
+  .filter-btn.active, .filter-btn:hover { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+  .spacer { flex: 1; }
+  .export-btn {
+    padding: 7px 16px; border-radius: 6px; background: #16a34a;
+    border: none; color: #fff; font-size: 13px; cursor: pointer; font-weight: 600;
+  }
+  .export-btn:hover { background: #15803d; }
+
+  /* Table */
+  .table-wrap { display: none; margin-top: 16px; overflow-x: auto; border-radius: 10px; border: 1px solid #222; }
+  .table-wrap.visible { display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #1a1a1e; padding: 10px 14px; text-align: left; color: #666; font-weight: 500; }
+  td { padding: 9px 14px; border-top: 1px solid #1e1e22; }
+  tr:hover td { background: #141416; }
+
+  .badge {
+    display: inline-block; padding: 2px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+  }
+  .badge.valid   { background: #14532d; color: #4ade80; }
+  .badge.invalid { background: #450a0a; color: #f87171; }
+  .badge.risky   { background: #451a03; color: #fb923c; }
+  .badge.unknown { background: #1c1c22; color: #9ca3af; }
+  .badge.skipped { background: #1c1c22; color: #6b7280; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Email Verifier</h1>
+    <span>Mumbo Leads — upload a CSV and verify emails in bulk</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Upload -->
+  <div class="upload-zone" id="uploadZone">
+    <div class="icon">📂</div>
+    <strong>Drop your CSV here or click to browse</strong>
+    <p>Exports from Clay, scraper output, or any CSV with an email column</p>
+    <input type="file" id="fileInput" accept=".csv" style="display:none"/>
+  </div>
+
+  <!-- Column picker -->
+  <div class="config" id="configSection">
+    <div style="flex:1">
+      <label>Email column</label>
+      <select id="colSelect"></select>
+    </div>
+    <button class="btn" id="runBtn">Verify Emails</button>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-section" id="progressSection">
+    <div class="progress-label" id="progressLabel">Starting...</div>
+    <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+    <div class="stats">
+      <div class="stat-card valid">  <div class="count" id="cValid">0</div>  <div class="label">Valid</div></div>
+      <div class="stat-card invalid"><div class="count" id="cInvalid">0</div><div class="label">Invalid</div></div>
+      <div class="stat-card risky">  <div class="count" id="cRisky">0</div>  <div class="label">Risky</div></div>
+      <div class="stat-card unknown"><div class="count" id="cUnknown">0</div><div class="label">Unknown</div></div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar" id="toolbar">
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="valid">Valid</button>
+    <button class="filter-btn" data-filter="invalid">Invalid</button>
+    <button class="filter-btn" data-filter="risky">Risky</button>
+    <button class="filter-btn" data-filter="unknown">Unknown</button>
+    <div class="spacer"></div>
+    <button class="export-btn" id="exportBtn">Export CSV</button>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap" id="tableWrap">
+    <table>
+      <thead id="tableHead"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+  let allRows    = [];
+  let csvFields  = [];
+  let activeFilter = "all";
+  let parsedFile = null;
+
+  const uploadZone   = document.getElementById("uploadZone");
+  const fileInput    = document.getElementById("fileInput");
+  const configSection= document.getElementById("configSection");
+  const colSelect    = document.getElementById("colSelect");
+  const runBtn       = document.getElementById("runBtn");
+  const progressSection = document.getElementById("progressSection");
+  const progressBar  = document.getElementById("progressBar");
+  const progressLabel= document.getElementById("progressLabel");
+  const toolbar      = document.getElementById("toolbar");
+  const tableWrap    = document.getElementById("tableWrap");
+  const tableHead    = document.getElementById("tableHead");
+  const tableBody    = document.getElementById("tableBody");
+
+  // Upload zone
+  uploadZone.addEventListener("click", () => fileInput.click());
+  uploadZone.addEventListener("dragover", e => { e.preventDefault(); uploadZone.classList.add("drag-over"); });
+  uploadZone.addEventListener("dragleave", () => uploadZone.classList.remove("drag-over"));
+  uploadZone.addEventListener("drop", e => { e.preventDefault(); uploadZone.classList.remove("drag-over"); handleFile(e.dataTransfer.files[0]); });
+  fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
+
+  function handleFile(file) {
+    if (!file) return;
+    parsedFile = file;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const lines = e.target.result.split("\n");
+      const headers = lines[0].split(",").map(h => h.replace(/^"|"$/g, "").trim());
+      csvFields = headers;
+      colSelect.innerHTML = headers.map(h => `<option value="${h}">${h}</option>`).join("");
+      // Auto-select email column if found
+      const emailCol = headers.find(h => /email/i.test(h));
+      if (emailCol) colSelect.value = emailCol;
+      configSection.classList.add("visible");
+      uploadZone.style.borderColor = "#3b82f6";
+      uploadZone.querySelector("strong").textContent = file.name;
+    };
+    reader.readAsText(file);
+  }
+
+  // Run verification
+  runBtn.addEventListener("click", async () => {
+    if (!parsedFile) return;
+    runBtn.disabled = true;
+    allRows = [];
+    progressSection.classList.add("visible");
+    toolbar.classList.remove("visible");
+    tableWrap.classList.remove("visible");
+    tableBody.innerHTML = "";
+    tableHead.innerHTML = "";
+    resetCounts();
+
+    const formData = new FormData();
+    formData.append("file", parsedFile);
+    formData.append("email_column", colSelect.value);
+
+    const response = await fetch("/upload", { method: "POST", body: formData });
+    const reader   = response.body.getReader();
+    const decoder  = new TextDecoder();
+    let buffer     = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const { row, index, total } = JSON.parse(line);
+          allRows.push(row);
+          updateProgress(index + 1, total);
+          updateCounts(row.status);
+          if (!tableHead.innerHTML) buildHeader(Object.keys(row));
+          appendRow(row);
+        } catch {}
+      }
+    }
+
+    toolbar.classList.add("visible");
+    tableWrap.classList.add("visible");
+    runBtn.disabled = false;
+  });
+
+  function resetCounts() {
+    ["cValid","cInvalid","cRisky","cUnknown"].forEach(id => document.getElementById(id).textContent = "0");
+  }
+
+  function updateProgress(done, total) {
+    const pct = Math.round((done / total) * 100);
+    progressBar.style.width = pct + "%";
+    progressLabel.textContent = `Verifying... ${done} / ${total} (${pct}%)`;
+    if (done === total) progressLabel.textContent = `Done — ${total} emails verified`;
+  }
+
+  function updateCounts(status) {
+    const map = { valid: "cValid", invalid: "cInvalid", risky: "cRisky", unknown: "cUnknown" };
+    if (map[status]) {
+      const el = document.getElementById(map[status]);
+      el.textContent = parseInt(el.textContent) + 1;
+    }
+  }
+
+  function buildHeader(keys) {
+    tableHead.innerHTML = "<tr>" + keys.map(k => `<th>${k}</th>`).join("") + "</tr>";
+  }
+
+  function appendRow(row) {
+    if (activeFilter !== "all" && row.status !== activeFilter) return;
+    const tr = document.createElement("tr");
+    tr.dataset.status = row.status;
+    tr.innerHTML = Object.entries(row).map(([k, v]) => {
+      if (k === "status") return `<td><span class="badge ${v}">${v}</span></td>`;
+      return `<td>${v ?? ""}</td>`;
+    }).join("");
+    tableBody.appendChild(tr);
+  }
+
+  // Filters
+  document.querySelectorAll(".filter-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      activeFilter = btn.dataset.filter;
+      tableBody.innerHTML = "";
+      allRows.forEach(r => {
+        if (activeFilter === "all" || r.status === activeFilter) appendRow(r);
+      });
+    });
+  });
+
+  // Export
+  document.getElementById("exportBtn").addEventListener("click", async () => {
+    const response = await fetch("/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows: allRows, status: activeFilter }),
+    });
+    const blob = await response.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `verified_${activeFilter}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  });
+</script>
+</body>
+</html>

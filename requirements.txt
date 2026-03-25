@@ -1,0 +1,6 @@
+fastapi==0.111.0
+uvicorn==0.29.0
+dnspython==2.6.1
+jinja2==3.1.4
+python-multipart==0.0.9
+aiofiles==23.2.1
